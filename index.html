@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TaskBoard by NullYex</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+  <script type="module" crossorigin src="/taskboard/assets/index-C9oRGL8i.js"></script>
+  <link rel="stylesheet" crossorigin href="/taskboard/assets/index-BMIjaPz9.css">
+</head>
+<body class="bg-base text-textMain">
+    <div class="css-bg-container"><div class="css-pillar"></div></div>
+
+    <nav class="relative z-50 bg-surface/80 border-b border-borderLine p-4">
+        <div class="max-w-6xl mx-auto flex justify-between items-center">
+            <h1 class="text-xl font-bold leading-tight">TaskBoard</h1>
+            <div class="flex items-center gap-4">
+                <span id="auth-status" class="text-xs text-textMuted">Offline</span>
+                <button onclick="window.handleGoogleLogin()" class="bg-primary px-4 py-2 rounded-lg font-bold">Sign In</button>
+            </div>
+        </div>
+    </nav>
+
+    <main class="relative z-10 max-w-6xl mx-auto p-6">
+        <section class="glass-panel p-6 rounded-2xl mb-10 border border-borderLine">
+            <h2 class="font-bold mb-4 flex items-center gap-2"><i class="ph ph-plus-circle text-primary"></i> Add Assignment</h2>
+            <form onsubmit="window.addAssignment(event)" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <input type="text" name="title" placeholder="Assignment Title" required class="bg-base border border-borderLine p-3 rounded-xl outline-none focus:border-primary">
+                <select name="subject_id" required class="bg-base border border-borderLine p-3 rounded-xl outline-none">
+                    <option value="sub_1">Math II</option>
+                    <option value="sub_2">Chemistry</option>
+                    <option value="sub_3">Python</option>
+                    <option value="sub_4">English</option>
+                    <option value="sub_5">Human Values</option>
+                    <option value="sub_6">Manufacturing</option>
+                    <option value="sub_7">Constitution</option>
+                </select>
+                <button type="submit" class="bg-primary p-3 rounded-xl font-bold">Create Task</button>
+            </form>
+        </section>
+
+        <div id="subjects-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+    </main>
+
+</body>
+</html>
