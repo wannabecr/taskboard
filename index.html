@@ -1,0 +1,1305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>TaskBoard by NullYex</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📋</text></svg>" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <!-- Google Sign-In (GSI) -->
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        surface: 'var(--bg-surface)',
+                        primary: 'var(--color-primary)',
+                        primaryHover: 'var(--color-primary-hover)',
+                        textMain: 'var(--text-main)',
+                        textMuted: 'var(--text-muted)',
+                        borderLine: 'var(--border-line)'
+                    },
+                    backgroundColor: {
+                        base: 'var(--bg-base)'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        :root {
+            --bg-base: #050505;
+            --bg-surface: #141414;
+            --border-line: #2a2a2a;
+            --text-main: #e5e5e5;
+            --text-muted: #a3a3a3;
+            --color-primary: #2ecc71;
+            --color-primary-hover: #27ae60;
+            --bg-blend: screen;
+            --pillar-opacity: 0.35;
+            --pillar-opacity-alt: 0.25;
+        }
+
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--border-line); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+        .toast-enter { transform: translateY(100%); opacity: 0; }
+        .toast-enter-active { transform: translateY(0); opacity: 1; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+        .toast-exit { transform: translateY(0); opacity: 1; }
+        .toast-exit-active { transform: translateY(100%); opacity: 0; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+
+        .overlay {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85);
+            z-index: 10000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s;
+            backdrop-filter: blur(4px);
+            padding: 1rem;
+        }
+        .overlay.active { opacity: 1; pointer-events: all; }
+
+        .modal-card {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-line);
+            padding: 24px;
+            border-radius: 20px;
+            width: 100%; max-width: 450px;
+            text-align: center;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+            position: relative;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        @media (min-width: 640px) {
+            .modal-card { padding: 32px; border-radius: 24px; }
+        }
+
+        .palette-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin-top: 16px;
+        }
+        @media (min-width: 640px) {
+            .palette-grid { gap: 12px; margin-top: 20px; }
+        }
+
+        .palette-option {
+            height: 56px;
+            border-radius: 12px;
+            border: 2px solid transparent;
+            display: flex;
+            overflow: hidden;
+            position: relative;
+            cursor: pointer;
+            transition: transform 0.2s, border-color 0.2s;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        @media (min-width: 640px) { .palette-option { height: 60px; } }
+        .palette-option:hover { transform: scale(1.05); }
+        .palette-option.active { border-color: var(--text-main); transform: scale(1.05); }
+
+        .p-col { flex: 1; height: 100%; }
+
+        input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+        input[type="color"]::-webkit-color-swatch { border: none; border-radius: 8px; }
+
+        .cbx-container {
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .cbx-container input {
+            display: none;
+        }
+
+        .cbx-container svg {
+            overflow: visible;
+            width: 24px;
+            height: 24px;
+        }
+
+        .cbx-container .path {
+            fill: none;
+            stroke: var(--text-muted);
+            stroke-width: 6;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            transition: stroke-dasharray 0.5s ease, stroke-dashoffset 0.5s ease, stroke 0.5s ease;
+            stroke-dasharray: 241 9999999;
+            stroke-dashoffset: 0;
+        }
+
+        .cbx-container input:checked ~ svg .path {
+            stroke-dasharray: 70.5096664428711 9999999;
+            stroke-dashoffset: -262.2723388671875;
+            stroke: var(--color-primary);
+        }
+
+        .animated-item {
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        .glass-panel {
+            background: color-mix(in srgb, var(--bg-surface) 70%, transparent);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            border: 1px solid color-mix(in srgb, var(--border-line) 50%, transparent);
+        }
+
+        .glass-subject {
+            background: color-mix(in srgb, var(--bg-base) 50%, transparent);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid color-mix(in srgb, var(--text-main) 12%, transparent);
+            box-shadow: 0 4px 24px -4px rgba(0, 0, 0, 0.15);
+        }
+
+        .glass-subject:hover {
+            background: color-mix(in srgb, var(--bg-base) 70%, transparent);
+            border-color: color-mix(in srgb, var(--color-primary) 60%, transparent);
+            box-shadow: 0 8px 32px -4px rgba(0, 0, 0, 0.25);
+        }
+
+        /* Form Inputs Text Visibility Fix */
+        input[type="text"], input[type="email"], input[type="password"], input[type="date"], input[type="url"], select {
+            background-color: var(--bg-surface) !important;
+            color: var(--text-main) !important;
+            border-color: var(--border-line);
+            font-size: 16px !important;
+        }
+        input:focus, select:focus {
+            background-color: var(--bg-base) !important;
+            border-color: var(--color-primary) !important;
+        }
+        /* Chrome Autofill override to prevent white background on text fields */
+        input:-webkit-autofill,
+        input:-webkit-autofill:hover, 
+        input:-webkit-autofill:focus, 
+        input:-webkit-autofill:active {
+            -webkit-box-shadow: 0 0 0 30px var(--bg-surface) inset !important;
+            -webkit-text-fill-color: var(--text-main) !important;
+            transition: background-color 5000s ease-in-out 0s;
+        }
+        
+        @media (min-width: 640px) {
+            input[type="text"], input[type="email"], input[type="password"], input[type="date"], input[type="url"], select {
+                font-size: 14px !important;
+            }
+        }
+
+        /* STATIC PARALLAX BACKGROUND */
+        .css-bg-container {
+            position: fixed;
+            inset: 0;
+            z-index: 0;
+            background: var(--bg-base);
+            overflow: hidden;
+            pointer-events: none;
+        }
+
+        .css-pillar {
+            position: absolute;
+            width: 60vw;
+            height: 80vh;
+            border-radius: 50%;
+            background: var(--color-primary);
+            filter: blur(100px);
+            opacity: var(--pillar-opacity);
+            top: -20vh;
+            left: -10vw;
+            transform: rotate(-25deg) scale(1) translateX(-10%);
+        }
+
+        .css-pillar-alt {
+            width: 50vw;
+            height: 90vh;
+            top: auto;
+            bottom: -30vh;
+            right: -10vw;
+            left: auto;
+            opacity: var(--pillar-opacity-alt);
+            transform: rotate(20deg) scale(1.2) translateX(15%);
+        }
+
+        /* RIPPLE EFFECT */
+        .ripple {
+            position: absolute;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.5);
+            transform: scale(0);
+            animation: ripple-animation 0.6s ease-out;
+            pointer-events: none;
+        }
+
+        @keyframes ripple-animation {
+            to { transform: scale(4); opacity: 0; }
+        }
+
+        /* CONFETTI PARTICLE */
+        .confetti {
+            position: fixed;
+            width: 10px;
+            height: 10px;
+            pointer-events: none;
+            z-index: 9999;
+            animation: confetti-fall 3s ease-out forwards;
+            will-change: transform, opacity;
+        }
+
+        @keyframes confetti-fall {
+            0% { transform: translateY(0) rotate(0deg); opacity: 1; }
+            100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
+        }
+
+        /* BUTTON HOVER GLOW */
+        button:not(:disabled):hover,
+        .hover-glow:hover {
+            position: relative;
+        }
+
+        button:not(:disabled):hover::before,
+        .hover-glow:hover::before {
+            content: '';
+            position: absolute;
+            inset: -2px;
+            border-radius: inherit;
+            background: linear-gradient(45deg, var(--color-primary), transparent);
+            opacity: 0.3;
+            z-index: -1;
+            filter: blur(8px);
+        }
+
+        /* SCALE ON HOVER */
+        .scale-hover { transition: transform 0.2s ease; }
+        .scale-hover:hover { transform: scale(1.05); }
+    </style>
+</head>
+<body class="bg-base min-h-screen text-textMain font-sans pb-10 transition-colors duration-300 relative" oncontextmenu="return false;">
+
+    <!-- STATIC BACKGROUND -->
+    <div class="css-bg-container" id="parallax-bg">
+        <div class="css-pillar"></div>
+        <div class="css-pillar css-pillar-alt"></div>
+    </div>
+
+    <!-- Navbar -->
+    <nav class="relative z-50 bg-surface shadow-sm border-b border-borderLine transition-colors duration-300">
+        <div class="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-3 sm:py-4 flex justify-between items-center">
+            <div class="flex items-center gap-2 sm:gap-3">
+                <div class="bg-primary text-white p-2 sm:p-2.5 rounded-xl shadow-sm transition-colors duration-300 flex-shrink-0">
+                    <i class="ph ph-books text-xl sm:text-2xl"></i>
+                </div>
+                <div class="flex flex-col">
+                    <h1 class="text-lg sm:text-xl font-bold text-textMain leading-tight">TaskBoard</h1>
+                    <a href="https://nullyex.com" target="_blank" class="text-[10px] sm:text-[12px] font-semibold text-textMuted leading-tight uppercase tracking-wider hover:text-primary transition-colors" style="font-family: 'JetBrains Mono', monospace;">by NullYex</a>
+                </div>
+            </div>
+            <div class="flex items-center gap-2 sm:gap-3">
+                <div id="connection-status" class="hidden sm:flex text-xs font-medium px-3 py-1.5 rounded-full bg-[color-mix(in_srgb,var(--color-primary)_10%,transparent)] text-primary border border-[color-mix(in_srgb,var(--color-primary)_20%,transparent)] items-center gap-1">
+                    <i class="ph ph-warning-circle"></i> Local Mode
+                </div>
+                <div id="connection-status-mobile" class="flex sm:hidden text-primary bg-[color-mix(in_srgb,var(--color-primary)_10%,transparent)] p-1.5 rounded-lg border border-[color-mix(in_srgb,var(--color-primary)_20%,transparent)]" title="Local Mode">
+                    <i class="ph ph-warning-circle text-lg"></i>
+                </div>
+                <a href="#" onclick="showToast('Complaint feature requires backend.', 'error')" class="flex items-center gap-1.5 px-3 py-1.5 bg-base border border-borderLine text-textMuted rounded-lg text-sm font-medium hover:text-red-500 transition-colors scale-hover">
+                    <i class="ph ph-warning-octagon text-lg sm:text-base"></i> <span class="hidden sm:inline">Complaint</span>
+                </a>
+                <button onclick="toggleOverlay('theme-overlay', true)" class="flex items-center gap-1.5 px-3 py-1.5 bg-base border border-borderLine text-textMuted rounded-lg text-sm font-medium hover:text-primary transition-colors scale-hover">
+                    <i class="ph ph-palette text-lg sm:text-base"></i> <span class="hidden sm:inline">Theme</span>
+                </button>
+                <button id="signout-btn" onclick="signOut()" class="hidden flex items-center gap-1.5 px-3 py-1.5 bg-base border border-borderLine text-textMuted rounded-lg text-sm font-medium hover:text-red-400 transition-colors scale-hover">
+                    <i class="ph ph-sign-out text-lg sm:text-base"></i> <span class="hidden sm:inline" id="user-email-display"></span>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <main class="relative z-10 max-w-[1400px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+
+        <!-- Setup Warning -->
+        <div id="setup-warning" class="mb-6 sm:mb-8 bg-[color-mix(in_srgb,var(--color-primary)_10%,transparent)] border border-[color-mix(in_srgb,var(--color-primary)_20%,transparent)] text-textMain rounded-xl p-4 flex gap-3 items-start transition-colors duration-300">
+            <i class="ph ph-info text-2xl mt-0.5 text-primary flex-shrink-0"></i>
+            <div>
+                <h3 class="font-semibold mb-1 text-sm sm:text-base">Welcome to your Assignment Tracker!</h3>
+                <p class="text-xs sm:text-sm opacity-90 mb-2 text-textMuted">You are currently viewing the local preview mode. All data is saved directly in your browser's local storage.</p>
+                <div class="border-t border-[color-mix(in_srgb,var(--color-primary)_20%,transparent)] pt-2 mt-2 flex justify-between items-center">
+                    <p class="text-[11px] sm:text-xs font-medium text-textMain mb-1">Uploads and updates will persist on this device until you clear your browser data.</p>
+                    <button onclick="document.getElementById('setup-warning').style.display='none'" class="text-primary hover:text-primaryHover text-xs font-bold px-2 py-1">Dismiss</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Add Assignment Form -->
+        <div class="glass-panel rounded-2xl shadow-sm p-4 sm:p-6 mb-8 transition-colors duration-300 scale-hover">
+            <h2 class="text-base sm:text-lg font-semibold mb-4 flex items-center gap-2 text-textMain">
+                <i class="ph ph-plus-circle text-primary text-lg sm:text-xl"></i> Add New Assignment
+            </h2>
+            <form id="add-form" class="flex flex-col gap-3 sm:gap-4">
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+                    <div class="sm:col-span-2 lg:col-span-1">
+                        <label for="title" class="sr-only">Assignment Title</label>
+                        <input type="text" id="title" required placeholder="e.g. Physics Lab Report"
+                               class="w-full px-4 py-3 sm:py-2.5 rounded-xl border focus:ring-2 focus:ring-primary outline-none transition-all placeholder-textMuted">
+                    </div>
+                    <div>
+                        <label for="subject" class="sr-only">Subject</label>
+                        <select id="subject" required onchange="handleSubjectSelect(this.value, 'add')"
+                                class="w-full px-4 py-3 sm:py-2.5 rounded-xl border focus:ring-2 focus:ring-primary outline-none transition-all text-textMain cursor-pointer">
+                            <option value="" disabled selected>Select Subject...</option>
+                            <!-- Options injected by JS -->
+                        </select>
+                    </div>
+                    <div>
+                        <label for="remarks" class="sr-only">Remarks (Optional)</label>
+                        <input type="text" id="remarks" placeholder="Remarks (Optional)"
+                               class="w-full px-4 py-3 sm:py-2.5 rounded-xl border focus:ring-2 focus:ring-primary outline-none transition-all placeholder-textMuted">
+                    </div>
+                </div>
+                
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 items-center">
+                    <div>
+                        <label for="question-file" class="sr-only">Question File (Optional)</label>
+                        <input type="file" id="question-file" accept="application/pdf, .doc, .docx, image/*"
+                               class="w-full px-3 py-3 sm:py-2.5 rounded-xl border border-borderLine bg-surface text-textMuted focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all file:mr-2 file:py-1 file:px-2 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-surface file:text-primary hover:file:bg-borderLine cursor-pointer" title="Upload Question File">
+                    </div>
+                    <div>
+                        <label for="question-link" class="sr-only">Question Link</label>
+                        <input type="url" id="question-link" placeholder="OR Question Link"
+                               class="w-full px-4 py-3 sm:py-2.5 rounded-xl border focus:ring-2 focus:ring-primary outline-none transition-all placeholder-textMuted text-sm">
+                    </div>
+                    <div>
+                        <label for="due-date" class="sr-only">Due Date</label>
+                        <input type="date" id="due-date"
+                               class="w-full px-4 py-3 sm:py-2.5 rounded-xl border focus:ring-2 focus:ring-primary outline-none transition-all cursor-pointer" title="Due Date (Optional)">
+                    </div>
+                    <button type="submit" class="ripple-btn w-full bg-primary hover:bg-primaryHover text-white px-6 py-3 sm:py-2.5 rounded-xl font-medium transition-colors flex items-center justify-center gap-2 whitespace-nowrap relative overflow-hidden">
+                        <i class="ph ph-paper-plane-right text-lg"></i> Add
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Global Header & Sorting -->
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6">
+            <h2 class="text-xl sm:text-2xl font-bold text-textMain flex items-center gap-2"><i class="ph ph-stack text-primary"></i> Subject Dashboards</h2>
+            <div class="flex items-center gap-3 w-full sm:w-auto">
+                <select id="sort-select" class="text-xs sm:text-sm bg-surface border border-borderLine text-textMain rounded-lg px-3 py-2 outline-none focus:border-primary transition-colors cursor-pointer w-full sm:w-auto" onchange="handleSortChange()">
+                    <option value="due_date">Sort by: Due Date</option>
+                    <option value="name">Sort by: Name</option>
+                    <option value="date_uploaded">Sort by: Date Uploaded</option>
+                    <option value="work_left">Sort by: Work Left</option>
+                </select>
+                <div class="text-xs sm:text-sm text-textMain font-medium bg-surface px-3 py-2 rounded-lg border border-borderLine flex-shrink-0" id="stats">0 / 0 Completed</div>
+            </div>
+        </div>
+
+        <!-- Grid Container for Subjects (2 columns on MD and above) -->
+        <div id="subjects-grid" class="grid grid-cols-1 md:grid-cols-2 gap-6 pb-12">
+            <!-- Subject Cards Injected Here -->
+        </div>
+
+    </main>
+
+    <!-- Disclaimer Footer -->
+    <footer class="relative z-10 max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center mt-2 sm:mt-4 mb-6">
+        <p class="text-[10px] sm:text-xs text-textMuted opacity-70 px-4">This is only for ease of access and in no way linked to the university. It is just a way to help in assignments.</p>
+        <p class="text-[10px] sm:text-xs text-textMuted opacity-70 px-4 mt-1">&copy; 2026 NullYex. All rights reserved.</p>
+    </footer>
+
+    <!-- New Subject Modal -->
+    <div id="new-subject-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden items-center justify-center p-4 transition-opacity">
+        <div class="bg-surface rounded-2xl shadow-xl max-w-sm w-full p-5 sm:p-6 transform transition-all border border-borderLine">
+            <h3 class="text-lg sm:text-xl font-bold text-textMain mb-4 flex items-center gap-2">
+                <i class="ph ph-books text-primary"></i> Add New Subject
+            </h3>
+            <form id="new-subject-form" class="flex flex-col gap-3 sm:gap-4">
+                <input type="hidden" id="new-subject-trigger">
+                <div>
+                    <label for="new-sub-name" class="block text-xs sm:text-sm font-medium text-textMain mb-1">Subject Name</label>
+                    <input type="text" id="new-sub-name" required placeholder="e.g. Data Structures"
+                           class="w-full px-4 py-3 sm:py-2.5 rounded-xl border border-borderLine focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all">
+                </div>
+                <div>
+                    <label for="new-sub-teacher" class="block text-xs sm:text-sm font-medium text-textMain mb-1">Teacher Name</label>
+                    <input type="text" id="new-sub-teacher" required placeholder="e.g. Dr. Smith"
+                           class="w-full px-4 py-3 sm:py-2.5 rounded-xl border border-borderLine focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all">
+                </div>
+                <div class="flex flex-col-reverse sm:flex-row gap-2 sm:gap-3 mt-2">
+                    <button type="button" onclick="closeNewSubjectModal()" class="w-full sm:flex-1 px-4 py-3 sm:py-2.5 rounded-xl font-medium text-textMain bg-base border border-borderLine hover:border-primary transition-colors">Cancel</button>
+                    <button type="submit" class="ripple-btn w-full sm:flex-1 px-4 py-3 sm:py-2.5 rounded-xl font-medium text-white bg-primary hover:bg-primaryHover transition-colors flex items-center justify-center gap-2 relative overflow-hidden">
+                        <i class="ph ph-plus"></i> Add Subject
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Auth Overlay -->
+    <div id="auth-overlay" class="overlay active z-[10002]">
+        <div class="modal-card" style="max-width:400px;">
+            <div class="flex items-center justify-center gap-2 mb-1">
+                <div class="bg-primary text-white p-2 rounded-xl"><i class="ph ph-books text-xl"></i></div>
+                <h1 class="text-xl font-bold text-textMain">TaskBoard</h1>
+            </div>
+            <p class="text-xs text-textMuted mb-5">Sign in to access your assignments</p>
+
+            <!-- Tab switcher -->
+            <div class="flex gap-1 bg-base rounded-xl p-1 mb-5 border border-borderLine">
+                <button id="tab-signin" onclick="switchAuthTab('signin')" class="flex-1 py-2 rounded-lg text-xs font-bold transition-all bg-primary text-white">Sign In</button>
+                <button id="tab-signup" onclick="switchAuthTab('signup')" class="flex-1 py-2 rounded-lg text-xs font-bold transition-all text-textMuted hover:text-textMain">Sign Up</button>
+            </div>
+
+            <div id="auth-error" class="hidden mb-3 text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2 text-left"></div>
+            <div id="auth-success" class="hidden mb-3 text-xs text-primary bg-[color-mix(in_srgb,var(--color-primary)_10%,transparent)] border border-[color-mix(in_srgb,var(--color-primary)_20%,transparent)] rounded-lg px-3 py-2 text-left"></div>
+
+            <div class="flex flex-col gap-3">
+                <input type="email" id="auth-email" placeholder="Email address"
+                    class="w-full px-4 py-3 rounded-xl border border-borderLine focus:ring-2 focus:ring-primary outline-none transition-all placeholder-textMuted">
+                <input type="password" id="auth-pass" placeholder="Password"
+                    class="w-full px-4 py-3 rounded-xl border border-borderLine focus:ring-2 focus:ring-primary outline-none transition-all placeholder-textMuted">
+                <button id="auth-submit-btn" onclick="handleEmailAuth()"
+                    class="ripple-btn w-full bg-primary hover:bg-primaryHover text-white py-3 rounded-xl font-bold transition-colors flex items-center justify-center gap-2 relative overflow-hidden">
+                    <i class="ph ph-sign-in"></i> <span id="auth-btn-label">Sign In</span>
+                </button>
+            </div>
+
+            <div class="flex items-center gap-3 my-4">
+                <div class="flex-1 h-px bg-borderLine"></div>
+                <span class="text-[10px] text-textMuted font-bold uppercase tracking-widest">or</span>
+                <div class="flex-1 h-px bg-borderLine"></div>
+            </div>
+
+            <!-- Google Sign-In button rendered by GSI -->
+            <div id="google-signin-btn" class="flex justify-center">
+                <button onclick="handleEmailAuth()" class="w-full bg-surface border border-borderLine hover:border-primary text-textMain py-3 rounded-xl font-bold transition-colors flex items-center justify-center gap-2 relative overflow-hidden text-sm">
+                    <i class="ph ph-google-logo text-lg"></i> Continue with Local Mock
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Theme Overlay -->
+    <div id="theme-overlay" class="overlay z-[10001]">
+        <div class="modal-card">
+            <h2 class="text-lg sm:text-xl font-bold text-textMain flex items-center justify-center gap-2">
+                <i class="ph ph-paint-brush text-primary"></i> VISUAL STYLE
+            </h2>
+            <div class="text-[10px] sm:text-xs text-textMuted mb-3 sm:mb-4 mt-1 font-semibold tracking-wider">SELECT INTERFACE THEME</div>
+            <div class="palette-grid" id="themeGrid"></div>
+            <div id="customColorSection" style="display: none;" class="mt-5 sm:mt-6 pt-5 sm:pt-6 border-t border-borderLine text-left">
+                <div class="flex justify-between items-center mb-3">
+                    <div class="text-[10px] sm:text-xs text-textMuted font-bold uppercase tracking-wide">CUSTOMIZE ACCENT</div>
+                    <button id="resetColorBtn" class="px-3 py-1 text-[10px] sm:text-xs font-semibold rounded-lg bg-base text-textMain border border-borderLine hover:border-primary transition-colors" onclick="resetCustomColor()">RESET</button>
+                </div>
+                <input type="color" id="nativeColorPicker" class="w-full h-10 sm:h-12 rounded-lg cursor-pointer bg-base border border-borderLine p-1" onchange="applyCustomColor(this.value)">
+            </div>
+            <button class="w-full mt-5 sm:mt-6 py-3 rounded-xl font-bold text-white bg-primary hover:bg-primaryHover transition-colors" onclick="toggleOverlay('theme-overlay', false)">CLOSE</button>
+        </div>
+    </div>
+
+    <!-- Edit Assignment Modal -->
+    <div id="edit-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden items-center justify-center p-4 transition-opacity">
+        <div class="bg-surface rounded-2xl shadow-xl max-w-md w-full p-5 sm:p-6 transform transition-all border border-borderLine">
+            <h3 class="text-lg sm:text-xl font-bold text-textMain mb-4 flex items-center gap-2">
+                <i class="ph ph-pencil-simple text-primary"></i> Edit Assignment
+            </h3>
+            <form id="edit-form" class="flex flex-col gap-3 sm:gap-4">
+                <input type="hidden" id="edit-assignment-id">
+                <div>
+                    <label for="edit-title" class="block text-xs sm:text-sm font-medium text-textMain mb-1">Assignment Title</label>
+                    <input type="text" id="edit-title" required class="w-full px-4 py-3 sm:py-2.5 rounded-xl border border-borderLine focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all">
+                </div>
+                <div>
+                    <label for="edit-subject" class="block text-xs sm:text-sm font-medium text-textMain mb-1">Subject</label>
+                    <select id="edit-subject" required onchange="handleSubjectSelect(this.value, 'edit')" class="w-full px-4 py-3 sm:py-2.5 rounded-xl border border-borderLine focus:ring-2 focus:ring-primary outline-none transition-all cursor-pointer text-textMain">
+                        <option value="" disabled>Select Subject...</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="edit-remarks" class="block text-xs sm:text-sm font-medium text-textMain mb-1">Remarks (Optional)</label>
+                    <input type="text" id="edit-remarks" class="w-full px-4 py-3 sm:py-2.5 rounded-xl border border-borderLine focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all placeholder-textMuted">
+                </div>
+                <div>
+                    <label for="edit-question-file" class="block text-xs sm:text-sm font-medium text-textMain mb-1">Update Question File (Optional)</label>
+                    <input type="file" id="edit-question-file" accept="application/pdf, .doc, .docx, image/*" class="w-full px-3 py-3 sm:py-2.5 rounded-xl border border-borderLine text-textMuted focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-[10px] sm:file:text-xs file:font-semibold file:bg-surface file:text-primary hover:file:bg-borderLine">
+                </div>
+                <div>
+                    <label for="edit-question-link" class="block text-xs sm:text-sm font-medium text-textMain mb-1">Update Question Link (Optional)</label>
+                    <input type="url" id="edit-question-link" placeholder="External URL (Overrides existing)" class="w-full px-4 py-3 sm:py-2.5 rounded-xl border border-borderLine focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all placeholder-textMuted">
+                    <p id="edit-current-question" class="text-[10px] sm:text-xs text-textMuted mt-1.5 hidden"><i class="ph ph-check-circle text-primary"></i> Document currently attached.</p>
+                </div>
+                <div>
+                    <label for="edit-due-date" class="block text-xs sm:text-sm font-medium text-textMain mb-1">Due Date (Optional)</label>
+                    <input type="date" id="edit-due-date" class="w-full px-4 py-3 sm:py-2.5 rounded-xl border border-borderLine focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all cursor-pointer">
+                </div>
+                <div class="flex flex-col-reverse sm:flex-row gap-2 sm:gap-3 mt-2">
+                    <button type="button" onclick="closeEditModal()" class="w-full sm:flex-1 px-4 py-3 sm:py-2.5 rounded-xl font-medium text-textMain bg-base border border-borderLine hover:border-primary transition-colors">Cancel</button>
+                    <button type="submit" class="w-full sm:flex-1 px-4 py-3 sm:py-2.5 rounded-xl font-medium text-white bg-primary hover:bg-primaryHover transition-colors flex items-center justify-center gap-2">
+                        <i class="ph ph-floppy-disk"></i> Save
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Upload Answer Modal -->
+    <div id="upload-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden items-center justify-center p-4 transition-opacity">
+        <div class="bg-surface rounded-2xl shadow-xl max-w-md w-full p-5 sm:p-6 transform transition-all border border-borderLine">
+            <h3 class="text-lg sm:text-xl font-bold text-textMain mb-4 flex items-center gap-2">
+                <i class="ph ph-upload-simple text-primary"></i> Upload Answer
+            </h3>
+            <form id="upload-form" class="flex flex-col gap-3 sm:gap-4">
+                <input type="hidden" id="upload-assignment-id">
+                <div>
+                    <label for="uploader-name" class="block text-xs sm:text-sm font-medium text-textMain mb-1">Your Name</label>
+                    <input type="text" id="uploader-name" required placeholder="e.g. Farhan" class="w-full px-4 py-3 sm:py-2.5 rounded-xl border border-borderLine focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all">
+                </div>
+                <div>
+                    <label for="upload-file" class="block text-xs sm:text-sm font-medium text-textMain mb-1">Upload File (PDF/Word/Image)</label>
+                    <p class="text-[10px] text-textMuted mb-2 leading-tight">Tip: Export your AI chat to Word or PDF and upload it here!</p>
+                    <input type="file" id="upload-file" accept="application/pdf, .doc, .docx, image/*" class="w-full px-3 py-3 sm:py-2.5 rounded-xl border border-borderLine text-textMuted focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-[10px] sm:file:text-xs file:font-semibold file:bg-surface file:text-primary hover:file:bg-borderLine">
+                </div>
+                <div class="text-center text-[10px] sm:text-xs text-textMuted font-bold uppercase my-0.5 tracking-wider">- OR -</div>
+                <div>
+                    <label for="upload-link" class="block text-xs sm:text-sm font-medium text-textMain mb-1">External Link</label>
+                    <input type="url" id="upload-link" placeholder="https://docs.google.com/..." class="w-full px-4 py-3 sm:py-2.5 rounded-xl border border-borderLine focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all placeholder-textMuted">
+                </div>
+                <div class="flex flex-col-reverse sm:flex-row gap-2 sm:gap-3 mt-3">
+                    <button type="button" onclick="closeUploadModal()" class="w-full sm:flex-1 px-4 py-3 sm:py-2.5 rounded-xl font-medium text-textMain bg-base border border-borderLine hover:border-primary transition-colors">Cancel</button>
+                    <button type="submit" id="modal-submit-btn" class="ripple-btn w-full sm:flex-1 px-4 py-3 sm:py-2.5 rounded-xl font-medium text-white bg-primary hover:bg-primaryHover transition-colors flex items-center justify-center gap-2 relative overflow-hidden">
+                        <i class="ph ph-upload-simple"></i> Upload
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toast-container" class="fixed bottom-4 left-4 right-4 sm:left-auto z-50 flex flex-col gap-2 pointer-events-none items-center sm:items-end"></div>
+
+    <script>
+        document.addEventListener('contextmenu', event => event.preventDefault());
+        document.addEventListener('keydown', function(e) {
+            if (e.keyCode == 123) return false;
+            if (e.ctrlKey && e.shiftKey && (e.keyCode == 'I'.charCodeAt(0) || e.keyCode == 'C'.charCodeAt(0) || e.keyCode == 'J'.charCodeAt(0))) return false;
+            if (e.ctrlKey && e.keyCode == 'U'.charCodeAt(0)) return false;
+        });
+
+        // ── Notification System ──────────────────────────────────────────────────
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            const isError = type === 'error';
+
+            toast.className = `toast-enter flex items-center gap-3 px-4 py-3 rounded-xl shadow-lg border ${
+                isError ? 'bg-red-500/10 border-red-500/20 text-red-500' : 'bg-[color-mix(in_srgb,var(--color-primary)_10%,transparent)] border-[color-mix(in_srgb,var(--color-primary)_20%,transparent)] text-primary'
+            } backdrop-blur-md max-w-sm w-full sm:w-auto z-[9999] pointer-events-auto transition-all`;
+
+            toast.innerHTML = `
+                <i class="ph ${isError ? 'ph-warning-circle' : 'ph-check-circle'} text-xl flex-shrink-0"></i>
+                <span class="text-xs sm:text-sm font-semibold">${message}</span>
+            `;
+
+            container.appendChild(toast);
+
+            // Animate in
+            requestAnimationFrame(() => {
+                toast.classList.remove('toast-enter');
+                toast.classList.add('toast-enter-active');
+            });
+
+            // Remove after 3.5 seconds
+            setTimeout(() => {
+                toast.classList.remove('toast-enter-active');
+                toast.classList.add('toast-exit-active');
+                setTimeout(() => toast.remove(), 300);
+            }, 3500);
+        }
+
+        // ── Local Mock Backend Setup ─────────────────────────────────────────────
+        const THEMES = [
+            { id: 'dark',     name: 'Cyber Dark',  colors: ['#050505', '#2ecc71'], details: { base: '#050505', surface: '#141414', border: '#2a2a2a', text: '#e5e5e5', muted: '#a3a3a3' } },
+            { id: 'light',    name: 'Clean Light', colors: ['#f8fafc', '#10b981'], details: { base: '#f8fafc', surface: '#ffffff', border: '#e2e8f0', text: '#0f172a', muted: '#64748b' } },
+            { id: 'sunset',   name: 'Sunset Vibe', colors: ['#2d1b24', '#f59e0b'], details: { base: '#2d1b24', surface: '#432836', border: '#633c51', text: '#fdf4ff', muted: '#d9b8c9' } },
+            { id: 'ocean',    name: 'Deep Ocean',  colors: ['#0f172a', '#38bdf8'], details: { base: '#0f172a', surface: '#1e293b', border: '#334155', text: '#f8fafc', muted: '#94a3b8' } },
+            { id: 'forest',   name: 'Neon Forest', colors: ['#051a0d', '#4ade80'], details: { base: '#051a0d', surface: '#0a2e17', border: '#134d28', text: '#f0fdf4', muted: '#86efac' } },
+            { id: 'berry',    name: 'Wild Berry',  colors: ['#4a0424', '#fb7185'], details: { base: '#4a0424', surface: '#6b0634', border: '#9d0a4c', text: '#fff1f2', muted: '#fecdd3' } },
+            { id: 'royal',    name: 'Royal Gold',  colors: ['#1e0b2e', '#fbbf24'], details: { base: '#1e0b2e', surface: '#34134f', border: '#562082', text: '#faf5ff', muted: '#d8b4fe' } },
+            { id: 'coffee',   name: 'Dark Roast',  colors: ['#271c19', '#d4a373'], details: { base: '#271c19', surface: '#3d2c27', border: '#5c423b', text: '#fff7ed', muted: '#fed7aa' } },
+            { id: 'midnight', name: 'Midnight',    colors: ['#020617', '#6366f1'], details: { base: '#020617', surface: '#0f172a', border: '#1e293b', text: '#f8fafc', muted: '#94a3b8' } },
+        ];
+
+        // SUBJECT DATA
+        const PREDEFINED_SUBJECTS = [
+            { id: 'sub_1', name: 'Engineering Mathematics-II', teacher: 'Prof. Deepa Mandal' },
+            { id: 'sub_2', name: 'Engineering Chemistry', teacher: 'Dr. ChandraPrabha Sahu' },
+            { id: 'sub_3', name: 'Programming with Python', teacher: 'IBM SUBJECT EXPERT' },
+            { id: 'sub_4', name: 'English for Skill Enhancement', teacher: 'Dr. Monika Singh' },
+            { id: 'sub_5', name: 'Universal Human Values', teacher: 'Dr Binod Kumar Choudhary' },
+            { id: 'sub_6', name: 'Manufacturing Practice', teacher: 'Dr. Shailendra kr Prashad' },
+            { id: 'sub_7', name: 'Constitution Of India', teacher: 'Dr. Prem Nath Suman' },
+            { id: 'sub_8_c1', name: 'Engineering Chemistry Laboratory (C1)', teacher: 'Mr. Abhijit Mandal' },
+            { id: 'sub_8_c2', name: 'Engineering Chemistry Laboratory (C2)', teacher: 'Mr. Abhijit Mandal' },
+            { id: 'sub_9_c1', name: 'Programming with Python Laboratory (C1)', teacher: 'IBM SUBJECT EXPERT' },
+            { id: 'sub_9_c2', name: 'Programming with Python Laboratory (C2)', teacher: 'IBM SUBJECT EXPERT' },
+            { id: 'sub_10_c1', name: 'Design Thinking and Idea Laboratory (C1)', teacher: 'Mr. Santosh Kumar Sah' },
+            { id: 'sub_10_c2', name: 'Design Thinking and Idea Laboratory (C2)', teacher: 'Mr. Santosh Kumar Sah' },
+            { id: 'sub_11_c1', name: 'Engineering Workshop (C1)', teacher: 'Mr. Jai Narayan' },
+            { id: 'sub_11_c2', name: 'Engineering Workshop (C2)', teacher: 'Mr. Jai Narayan' },
+            { id: 'sub_12_c1', name: 'English Language and Comm. Skills Lab (C1)', teacher: 'Dr. Monika Singh' },
+            { id: 'sub_12_c2', name: 'English Language and Comm. Skills Lab (C2)', teacher: 'Dr. Monika Singh' },
+        ];
+
+        let currentUser  = null;
+        let assignments = [];
+        let currentSort = 'due_date';
+
+        const mockData = [
+            { id: 1, subject_id: 'sub_1', title: 'Calculus Assignment 3', due_date: '2026-03-10', completed: false, uploads: [], question_url: 'https://example.com/mock_question.pdf', remarks: 'Please remember to show all your working out clearly.', created_at: '2026-03-01T10:00:00Z' },
+            { id: 2, subject_id: 'sub_4', title: 'History Essay Draft', due_date: '2026-03-05', completed: true, uploads: [{ name: "Farhan", url: "https://example.com/dummy.pdf", date: "Mar 4, 2026" }], question_url: '', remarks: null, created_at: '2026-03-02T10:00:00Z' },
+            { id: 3, subject_id: 'sub_8_c1', title: 'Titration Lab Results', due_date: null, completed: false, uploads: [], question_url: '', remarks: 'Check the lab manual for formatting guidelines before submitting.', created_at: '2026-03-03T10:00:00Z' }
+        ];
+
+        function getSubjects() {
+            const custom = JSON.parse(localStorage.getItem('taskboard_custom_subjects') || '[]');
+            return [...PREDEFINED_SUBJECTS, ...custom];
+        }
+
+        function populateSubjectDropdowns() {
+            const subjects = getSubjects();
+            const addSelect = document.getElementById('subject');
+            const editSelect = document.getElementById('edit-subject');
+            
+            const optionsHtml = subjects.map(s => `<option value="${s.id}">${s.name}</option>`).join('') + 
+                                `<option value="ADD_NEW" class="text-primary font-bold bg-surface">➕ Add New Subject...</option>`;
+            
+            addSelect.innerHTML = `<option value="" disabled selected>Select Subject...</option>${optionsHtml}`;
+            editSelect.innerHTML = `<option value="" disabled>Select Subject...</option>${optionsHtml}`;
+        }
+
+        function handleSubjectSelect(value, triggerForm) {
+            if (value === 'ADD_NEW') {
+                document.getElementById('new-subject-trigger').value = triggerForm;
+                document.getElementById('new-sub-name').value = '';
+                document.getElementById('new-sub-teacher').value = '';
+                
+                if(triggerForm === 'add') document.getElementById('subject').value = "";
+                if(triggerForm === 'edit') document.getElementById('edit-subject').value = "";
+
+                const modal = document.getElementById('new-subject-modal');
+                modal.classList.remove('hidden');
+                modal.style.display = 'flex';
+                setTimeout(() => document.getElementById('new-sub-name').focus(), 100);
+            }
+        }
+
+        function closeNewSubjectModal() {
+            const modal = document.getElementById('new-subject-modal');
+            modal.classList.add('hidden');
+            modal.style.display = '';
+        }
+
+        document.getElementById('new-subject-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const name = document.getElementById('new-sub-name').value.trim();
+            const teacher = document.getElementById('new-sub-teacher').value.trim();
+            const trigger = document.getElementById('new-subject-trigger').value;
+            
+            const newId = 'sub_custom_' + Date.now();
+            const customSubjects = JSON.parse(localStorage.getItem('taskboard_custom_subjects') || '[]');
+            customSubjects.push({ id: newId, name, teacher });
+            localStorage.setItem('taskboard_custom_subjects', JSON.stringify(customSubjects));
+            
+            populateSubjectDropdowns();
+            
+            if (trigger === 'add') document.getElementById('subject').value = newId;
+            if (trigger === 'edit') document.getElementById('edit-subject').value = newId;
+            
+            closeNewSubjectModal();
+            showToast('New subject added!', 'success');
+        });
+
+        // Theming Functions
+        function applyCustomColor(hexColor, save = true) {
+            document.documentElement.style.setProperty('--color-primary', hexColor);
+            document.documentElement.style.setProperty('--color-primary-hover', hexColor + 'cc');
+            const currentTheme = localStorage.getItem('taskboard_theme') || 'dark';
+            if (save && (currentTheme === 'dark' || currentTheme === 'light')) {
+                localStorage.setItem(`taskboard_custom_color_${currentTheme}`, hexColor);
+            }
+            const activePalette = document.querySelector(`.palette-option[data-theme="${currentTheme}"]`);
+            if (activePalette) {
+                const cols = activePalette.querySelectorAll('.p-col');
+                if (cols.length > 1) cols[1].style.background = hexColor;
+            }
+        }
+
+        function resetCustomColor() {
+            const currentTheme = localStorage.getItem('taskboard_theme') || 'dark';
+            if (currentTheme !== 'dark' && currentTheme !== 'light') return;
+            localStorage.removeItem(`taskboard_custom_color_${currentTheme}`);
+            const defaultColor = currentTheme === 'dark' ? '#2ecc71' : '#10b981';
+            document.getElementById('nativeColorPicker').value = defaultColor;
+            applyCustomColor(defaultColor);
+        }
+
+        function applyTheme(themeId) {
+            document.documentElement.setAttribute('data-theme', themeId);
+            localStorage.setItem('taskboard_theme', themeId);
+            document.querySelectorAll('.palette-option').forEach(el => el.classList.toggle('active', el.dataset.theme === themeId));
+            const theme = THEMES.find(t => t.id === themeId);
+            if (theme) {
+                document.documentElement.style.setProperty('--bg-base', theme.details.base);
+                document.documentElement.style.setProperty('--bg-surface', theme.details.surface);
+                document.documentElement.style.setProperty('--border-line', theme.details.border);
+                document.documentElement.style.setProperty('--text-main', theme.details.text);
+                document.documentElement.style.setProperty('--text-muted', theme.details.muted);
+                const isLight = theme.id === 'light';
+                document.documentElement.style.setProperty('--pillar-opacity', isLight ? '0.15' : '0.35');
+                document.documentElement.style.setProperty('--pillar-opacity-alt', isLight ? '0.1' : '0.25');
+
+                let accentColor = theme.colors[1];
+                if (themeId === 'dark' || themeId === 'light') {
+                    const saved = localStorage.getItem(`taskboard_custom_color_${themeId}`);
+                    if (saved) accentColor = saved;
+                }
+                applyCustomColor(accentColor, false);
+            }
+            const customSection = document.getElementById('customColorSection');
+            if (themeId === 'dark' || themeId === 'light') {
+                if (customSection) customSection.style.display = 'block';
+                const defaultColor = themeId === 'dark' ? '#2ecc71' : '#10b981';
+                document.getElementById('nativeColorPicker').value = localStorage.getItem(`taskboard_custom_color_${themeId}`) || defaultColor;
+            } else {
+                if (customSection) customSection.style.display = 'none';
+            }
+        }
+
+        function generateThemeGrid() {
+            const grid = document.getElementById('themeGrid');
+            grid.innerHTML = '';
+            THEMES.forEach(t => {
+                const div = document.createElement('div');
+                div.className = 'palette-option';
+                div.dataset.theme = t.id;
+                div.onclick = () => applyTheme(t.id);
+                div.innerHTML = `<div class="p-col" style="background:${t.colors[0]}"></div><div class="p-col" style="background:${t.colors[1]}"></div><div style="position:absolute; bottom:5px; left:0; width:100%; text-align:center; font-size:0.55rem; color:#fff; text-shadow:0 1px 3px rgba(0,0,0,0.9); font-weight:bold;">${t.name.toUpperCase()}</div>`;
+                grid.appendChild(div);
+            });
+        }
+
+        function toggleOverlay(id, show) {
+            document.getElementById(id).classList.toggle('active', show);
+        }
+
+        // RIPPLE EFFECT
+        document.addEventListener('click', (e) => {
+            if (e.target.closest('.ripple-btn')) {
+                const button = e.target.closest('.ripple-btn');
+                const ripple = document.createElement('span');
+                const rect = button.getBoundingClientRect();
+                const size = Math.max(rect.width, rect.height);
+                ripple.style.width = ripple.style.height = size + 'px';
+                ripple.style.left = (e.clientX - rect.left - size / 2) + 'px';
+                ripple.style.top = (e.clientY - rect.top - size / 2) + 'px';
+                ripple.classList.add('ripple');
+                button.appendChild(ripple);
+                setTimeout(() => ripple.remove(), 600);
+            }
+        });
+
+        function createConfetti(x, y) {
+            const colors = ['#2ecc71', '#3498db', '#e74c3c', '#f39c12', '#9b59b6', '#1abc9c'];
+            for (let i = 0; i < 30; i++) {
+                const confetti = document.createElement('div');
+                confetti.className = 'confetti';
+                confetti.style.left = x + 'px';
+                confetti.style.top = y + 'px';
+                confetti.style.background = colors[Math.floor(Math.random() * colors.length)];
+                confetti.style.transform = `translate(${(Math.random() - 0.5) * 200}px, ${(Math.random() - 0.5) * 200}px) rotate(${Math.random() * 360}deg)`;
+                document.body.appendChild(confetti);
+                setTimeout(() => confetti.remove(), 3000);
+            }
+        }
+
+        // ── AUTH UI ───────────────────────────────────────────────────────────────
+        let authMode = 'signin';
+
+        function switchAuthTab(mode) {
+            authMode = mode;
+            document.getElementById('tab-signin').className = `flex-1 py-2 rounded-lg text-xs font-bold transition-all ${mode==='signin'?'bg-primary text-white':'text-textMuted hover:text-textMain'}`;
+            document.getElementById('tab-signup').className = `flex-1 py-2 rounded-lg text-xs font-bold transition-all ${mode==='signup'?'bg-primary text-white':'text-textMuted hover:text-textMain'}`;
+            document.getElementById('auth-btn-label').textContent = mode === 'signin' ? 'Sign In' : 'Create Account';
+            document.getElementById('auth-error').classList.add('hidden');
+            document.getElementById('auth-success').classList.add('hidden');
+        }
+
+        function showAuthError(msg) {
+            const el = document.getElementById('auth-error');
+            el.textContent = msg;
+            el.classList.remove('hidden');
+            document.getElementById('auth-success').classList.add('hidden');
+        }
+        function showAuthSuccess(msg) {
+            const el = document.getElementById('auth-success');
+            el.textContent = msg;
+            el.classList.remove('hidden');
+            document.getElementById('auth-error').classList.add('hidden');
+        }
+
+        async function handleEmailAuth() {
+            const email = document.getElementById('auth-email').value.trim();
+            const pass  = document.getElementById('auth-pass').value;
+            
+            if(!email && event.target.innerText.includes('Local Mock')){
+                // Mock Login without credentials
+                onAuthSuccess({ email: 'local@mock.test' });
+                return;
+            }
+
+            if (!email || !pass) return showAuthError('Please enter email and password.');
+
+            const btn = document.getElementById('auth-submit-btn');
+            btn.disabled = true;
+            btn.innerHTML = '<i class="ph ph-spinner animate-spin"></i> Please wait...';
+
+            setTimeout(() => {
+                onAuthSuccess({ email: email });
+                btn.disabled = false;
+                btn.innerHTML = `<i class="ph ph-sign-in"></i> ${authMode === 'signin' ? 'Sign In' : 'Create Account'}`;
+            }, 800);
+        }
+
+        function onAuthSuccess(user) {
+            currentUser  = user;
+            toggleOverlay('auth-overlay', false);
+            document.getElementById('signout-btn').classList.remove('hidden');
+            document.getElementById('signout-btn').classList.add('flex');
+            const emailShort = user.email.split('@')[0];
+            document.getElementById('user-email-display').textContent = emailShort;
+            
+            showToast('Logged in successfully!', 'success');
+            initApp();
+        }
+
+        function signOut() {
+            currentUser = null;
+            document.getElementById('signout-btn').classList.add('hidden');
+            document.getElementById('signout-btn').classList.remove('flex');
+            toggleOverlay('auth-overlay', true);
+            showToast('Logged out.', 'success');
+        }
+
+        // ── APP INIT AND STATE MANGEMENT ──────────────────────────────────────────
+        function saveLocalState() {
+            localStorage.setItem('taskboard_assignments', JSON.stringify(assignments));
+        }
+
+        function initApp() {
+            const localData = localStorage.getItem('taskboard_assignments');
+            if(localData) {
+                assignments = JSON.parse(localData);
+            } else {
+                assignments = [...mockData];
+                saveLocalState();
+            }
+
+            document.getElementById('connection-status').innerHTML = '<i class="ph ph-cloud-check"></i> Local Data';
+            document.getElementById('connection-status').classList.remove('hidden');
+            document.getElementById('connection-status').classList.add('sm:flex');
+            document.getElementById('due-date').setAttribute('min', new Date().toISOString().split('T')[0]);
+            
+            sortAssignments();
+            renderAssignments();
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            generateThemeGrid();
+            applyTheme(localStorage.getItem('taskboard_theme') || 'dark');
+            populateSubjectDropdowns();
+        });
+
+        document.getElementById('add-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const submitBtn = e.target.querySelector('button[type="submit"]');
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="ph ph-spinner animate-spin"></i>';
+
+            setTimeout(async () => {
+                try {
+                    const file = document.getElementById('question-file').files[0];
+                    let questionUrl = document.getElementById('question-link').value.trim() || null;
+
+                    if (file) questionUrl = URL.createObjectURL(file); // Mock Upload
+
+                    const payload = {
+                        id: Date.now(),
+                        title: document.getElementById('title').value.trim(),
+                        subject_id: document.getElementById('subject').value,
+                        due_date: document.getElementById('due-date').value || null,
+                        remarks: document.getElementById('remarks').value.trim() || null,
+                        question_url: questionUrl,
+                        completed: false,
+                        uploads: [],
+                        created_at: new Date().toISOString()
+                    };
+
+                    assignments.push(payload);
+                    saveLocalState();
+                    sortAssignments();
+                    renderAssignments();
+                    document.getElementById('add-form').reset();
+                    showToast('Assignment added successfully!', 'success');
+                } catch(err) {
+                    showToast(err.message || 'Failed to add assignment', 'error');
+                } finally {
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = '<i class="ph ph-paper-plane-right text-lg"></i> Add';
+                }
+            }, 600); // Simulate network latency
+        });
+
+        document.getElementById('edit-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const submitBtn = e.target.querySelector('button[type="submit"]');
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="ph ph-spinner animate-spin"></i>';
+            const id = parseInt(document.getElementById('edit-assignment-id').value);
+
+            setTimeout(async () => {
+                try {
+                    const file = document.getElementById('edit-question-file').files[0];
+                    let questionUrl = document.getElementById('edit-question-link').value.trim() ||
+                                      assignments.find(a => a.id === id)?.question_url || null;
+
+                    if (file) questionUrl = URL.createObjectURL(file); // Mock upload
+
+                    const payload = {
+                        title: document.getElementById('edit-title').value.trim(),
+                        subject_id: document.getElementById('edit-subject').value,
+                        due_date: document.getElementById('edit-due-date').value || null,
+                        remarks: document.getElementById('edit-remarks').value.trim() || null,
+                        question_url: questionUrl
+                    };
+
+                    const idx = assignments.findIndex(a => a.id === id);
+                    if(idx !== -1) {
+                        assignments[idx] = { ...assignments[idx], ...payload };
+                        saveLocalState();
+                        sortAssignments();
+                        renderAssignments();
+                        closeEditModal();
+                        showToast('Assignment updated successfully!', 'success');
+                    }
+                } catch(err) {
+                    showToast('Failed to update: ' + err.message, 'error');
+                } finally {
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = '<i class="ph ph-floppy-disk"></i> Save';
+                }
+            }, 500);
+        });
+
+        function openEditModal(id) {
+            const a = assignments.find(a => a.id === id);
+            if (!a) return;
+            document.getElementById('edit-assignment-id').value = a.id;
+            document.getElementById('edit-title').value = a.title;
+            document.getElementById('edit-subject').value = a.subject_id || '';
+            document.getElementById('edit-remarks').value = a.remarks || '';
+            document.getElementById('edit-due-date').value = a.due_date || '';
+            document.getElementById('edit-question-file').value = '';
+            document.getElementById('edit-question-link').value = '';
+            document.getElementById('edit-current-question').classList.toggle('hidden', !a.question_url);
+            
+            const modal = document.getElementById('edit-modal');
+            modal.classList.remove('hidden');
+            modal.style.display = 'flex';
+        }
+
+        function closeEditModal() {
+            const modal = document.getElementById('edit-modal');
+            modal.classList.add('hidden');
+            modal.style.display = '';
+        }
+
+        function toggleCompletion(id, evt) {
+            const index = assignments.findIndex(a => a.id === id);
+            if (index === -1) return;
+            
+            const newStatus = !assignments[index].completed;
+            assignments[index].completed = newStatus;
+
+            if (newStatus && evt && evt.target) {
+                const rect = evt.target.closest('.cbx-container').getBoundingClientRect();
+                createConfetti(rect.left + rect.width / 2, rect.top + rect.height / 2);
+            }
+
+            saveLocalState();
+            
+            setTimeout(() => {
+                if (currentSort === 'work_left') sortAssignments();
+                renderAssignments();
+            }, 400);
+        }
+
+        // UPLOAD MODAL
+        function openUploadModal(assignmentId) {
+            document.getElementById('upload-assignment-id').value = assignmentId;
+            document.getElementById('uploader-name').value = '';
+            document.getElementById('upload-file').value = '';
+            document.getElementById('upload-link').value = '';
+            const modal = document.getElementById('upload-modal');
+            modal.classList.remove('hidden');
+            modal.style.display = 'flex';
+        }
+
+        function closeUploadModal() {
+            const modal = document.getElementById('upload-modal');
+            modal.classList.add('hidden');
+            modal.style.display = '';
+        }
+
+        document.getElementById('upload-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const id = parseInt(document.getElementById('upload-assignment-id').value);
+            const name = document.getElementById('uploader-name').value.trim();
+            const file = document.getElementById('upload-file').files[0];
+            const link = document.getElementById('upload-link').value.trim();
+            const submitBtn = document.getElementById('modal-submit-btn');
+
+            if (!file && !link) return showToast('Please provide a file or a link', 'error');
+            if (file && file.size > 5 * 1024 * 1024) return showToast('File must be less than 5MB', 'error');
+
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="ph ph-spinner animate-spin"></i> Uploading...';
+
+            setTimeout(async () => {
+                try {
+                    let finalUrl = link;
+                    if (file) finalUrl = URL.createObjectURL(file); // Mock file storage
+
+                    const uploadDate = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                    const index = assignments.findIndex(a => a.id === id);
+
+                    if(index !== -1) {
+                        const updatedUploads = [...(assignments[index].uploads || []), { name, url: finalUrl, date: uploadDate }];
+                        assignments[index].uploads = updatedUploads;
+                        saveLocalState();
+                        renderAssignments();
+                        closeUploadModal();
+                        showToast('Answer uploaded successfully!', 'success');
+                    }
+                } catch (error) {
+                    showToast(error.message || 'Error uploading file', 'error');
+                } finally {
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = '<i class="ph ph-upload-simple"></i> Upload';
+                }
+            }, 600);
+        });
+
+        function toggleUploadsList(id) {
+            const el = document.getElementById(`uploads-list-${id}`);
+            const icon = document.getElementById(`uploads-icon-${id}`);
+            if (el.classList.contains('hidden')) {
+                el.classList.remove('hidden');
+                icon.classList.replace('ph-caret-down', 'ph-caret-up');
+            } else {
+                el.classList.add('hidden');
+                icon.classList.replace('ph-caret-up', 'ph-caret-down');
+            }
+        }
+
+        function handleSortChange() {
+            currentSort = document.getElementById('sort-select').value;
+            sortAssignments();
+            renderAssignments();
+        }
+
+        function sortAssignments() {
+            assignments.sort((a, b) => {
+                if (currentSort === 'due_date') {
+                    if (!a.due_date && !b.due_date) return 0;
+                    if (!a.due_date) return 1;
+                    if (!b.due_date) return -1;
+                    return new Date(a.due_date) - new Date(b.due_date);
+                } else if (currentSort === 'name') return a.title.localeCompare(b.title);
+                else if (currentSort === 'date_uploaded') return (b.created_at ? new Date(b.created_at).getTime() : b.id) - (a.created_at ? new Date(a.created_at).getTime() : a.id);
+                else if (currentSort === 'work_left') {
+                    if (a.completed === b.completed) {
+                        if (!a.due_date && !b.due_date) return 0;
+                        if (!a.due_date) return 1;
+                        if (!b.due_date) return -1;
+                        return new Date(a.due_date) - new Date(b.due_date);
+                    }
+                    return a.completed ? 1 : -1;
+                }
+            });
+        }
+
+        function formatDate(dateString) {
+            if (!dateString) return 'No Due Date';
+            const date = new Date(dateString);
+            return new Date(date.getTime() + date.getTimezoneOffset() * 60000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        }
+
+        function getDaysDifference(dateString) {
+            if (!dateString) return null;
+            const today = new Date(); today.setHours(0, 0, 0, 0);
+            const dueDate = new Date(dateString);
+            const adjustedDueDate = new Date(dueDate.getTime() + dueDate.getTimezoneOffset() * 60000);
+            return Math.ceil((adjustedDueDate - today) / (1000 * 60 * 60 * 24));
+        }
+
+        // ── RESTORED renderAssignments FUNCTION ──────────────────────────────────
+        function renderAssignments() {
+            const gridContainer = document.getElementById('subjects-grid');
+            const statsElement = document.getElementById('stats');
+            gridContainer.innerHTML = '';
+            
+            let completedCount = 0;
+            const subjects = getSubjects();
+            let visibleSubjectsCount = 0;
+
+            subjects.forEach(subject => {
+                const subjectAssignments = assignments.filter(a => a.subject_id === subject.id);
+                if (subjectAssignments.length === 0) return; // Skip empty subjects for cleaner UI
+
+                visibleSubjectsCount++;
+                
+                // Build the Card wrapper for the subject
+                const subjectCard = document.createElement('div');
+                subjectCard.className = 'glass-panel rounded-2xl shadow-sm flex flex-col h-full border border-[color-mix(in_srgb,var(--border-line)_50%,transparent)] overflow-hidden scale-hover';
+                
+                // Card Header
+                const cardHeader = document.createElement('div');
+                cardHeader.className = 'p-4 sm:p-5 border-b border-[color-mix(in_srgb,var(--border-line)_50%,transparent)] bg-[color-mix(in_srgb,var(--bg-base)_50%,transparent)] backdrop-blur z-20 flex flex-col gap-1';
+                cardHeader.innerHTML = `
+                    <h2 class="text-base sm:text-lg font-bold text-textMain leading-tight">${subject.name}</h2>
+                    <p class="text-[10px] sm:text-xs text-textMuted font-medium flex items-center gap-1.5"><i class="ph ph-chalkboard-teacher text-primary"></i> ${subject.teacher}</p>
+                `;
+                subjectCard.appendChild(cardHeader);
+
+                // Card Body
+                const cardBody = document.createElement('div');
+                cardBody.className = 'relative flex-1 bg-transparent';
+                
+                const ul = document.createElement('ul');
+                ul.className = 'p-4 sm:p-5 space-y-3 overflow-y-auto max-h-[500px] scroll-smooth';
+
+                subjectAssignments.forEach((assignment) => {
+                    if (assignment.completed) completedCount++;
+
+                    const uploads = assignment.uploads || [];
+                    const daysDiff = getDaysDifference(assignment.due_date);
+                    const pastDue = !assignment.completed && daysDiff !== null && daysDiff < 0;
+                    const dueSoon = !assignment.completed && daysDiff !== null && daysDiff >= 0 && daysDiff <= 3;
+
+                    let dateBadge = '';
+                    if (pastDue) dateBadge = '<span class="bg-red-500/10 text-red-500 border border-red-500/20 text-[10px] px-2 py-0.5 rounded-full uppercase tracking-wide font-bold flex-shrink-0">Past Due</span>';
+                    else if (dueSoon) dateBadge = '<span class="bg-yellow-500/10 text-yellow-500 border border-yellow-500/20 text-[10px] px-2 py-0.5 rounded-full uppercase tracking-wide font-bold flex items-center gap-1 flex-shrink-0"><i class="ph ph-bell-ringing"></i> Due Soon</span>';
+
+                    const dateColor = pastDue ? 'text-red-500 font-semibold' : (dueSoon ? 'text-yellow-500 font-medium' : 'text-textMuted');
+
+                    let uploadsHtml = '';
+                    if (uploads.length > 0) {
+                        uploadsHtml = `
+                            <div class="mt-3 pt-3 border-t border-borderLine w-full hidden" id="uploads-list-${assignment.id}">
+                                <h4 class="text-[10px] font-semibold text-textMuted uppercase tracking-wider mb-2">Answers</h4>
+                                <ul class="space-y-1.5">
+                                    ${uploads.map(u => {
+                                        const isLink = u.url.startsWith('http') && !u.url.startsWith('blob:');
+                                        return `
+                                        <li class="flex items-center justify-between bg-surface p-2 rounded-lg gap-2 border border-borderLine">
+                                            <div class="flex items-center gap-2 overflow-hidden">
+                                                <i class="ph ${isLink ? 'ph-link' : 'ph-file-text'} text-primary"></i>
+                                                <div class="truncate">
+                                                    <p class="text-[10px] sm:text-xs font-medium text-textMain truncate">${u.name}</p>
+                                                </div>
+                                            </div>
+                                            <a href="${u.url}" target="_blank" class="flex-shrink-0 text-[10px] sm:text-xs bg-base border border-borderLine hover:border-primary hover:text-primary px-2.5 py-1 rounded-md transition-colors font-medium flex items-center gap-1"><i class="ph ph-arrow-square-out"></i> View</a>
+                                        </li>`
+                                    }).join('')}
+                                </ul>
+                            </div>`;
+                    }
+
+                    const isQuestionLink = assignment.question_url && !assignment.question_url.startsWith('blob:');
+                    const questionBtn = assignment.question_url
+                        ? `<a href="${assignment.question_url}" target="_blank" class="flex items-center justify-center gap-1.5 px-2 py-1.5 bg-[color-mix(in_srgb,var(--color-primary)_10%,transparent)] text-primary border border-[color-mix(in_srgb,var(--color-primary)_20%,transparent)] hover:bg-[color-mix(in_srgb,var(--color-primary)_20%,transparent)] rounded-lg text-xs font-medium transition-colors"><i class="ph ${isQuestionLink ? 'ph-link' : 'ph-file'}"></i> Q</a>`
+                        : '';
+
+                    const remarksHtml = assignment.remarks
+                        ? `<p class="mt-1 text-[11px] sm:text-xs text-textMuted leading-snug"><span class="font-semibold opacity-70">Note:</span> ${assignment.remarks}</p>`
+                        : '';
+
+                    const li = document.createElement('li');
+                    li.className = `animated-item glass-subject rounded-xl p-3 sm:p-4 transition-all flex flex-col ${assignment.completed ? 'opacity-60 grayscale-[0.3]' : ''}`;
+
+                    li.innerHTML = `
+                        <div class="flex flex-col gap-2 w-full">
+                            <div class="flex items-start gap-3 w-full">
+                                <label class="cbx-container mt-0.5 flex-shrink-0">
+                                    <input type="checkbox" onchange="toggleCompletion(${assignment.id}, event)" ${assignment.completed ? 'checked' : ''}>
+                                    <svg viewBox="0 0 64 64"><path d="M 0 16 V 56 A 8 8 90 0 0 8 64 H 56 A 8 8 90 0 0 64 56 V 8 A 8 8 90 0 0 56 0 H 8 A 8 8 90 0 0 0 8 V 16 L 32 48 L 64 16" class="path"></path></svg>
+                                </label>
+                                <div class="flex-1 min-w-0">
+                                    <h3 class="font-medium text-sm sm:text-base text-textMain ${assignment.completed ? 'line-through decoration-textMuted' : ''} leading-tight truncate" title="${assignment.title}">${assignment.title}</h3>
+                                    <div class="flex items-center gap-1.5 mt-1 text-[10px] sm:text-xs flex-wrap">
+                                        <span class="flex items-center gap-1 ${dateColor}"><i class="ph ph-calendar-blank"></i> ${formatDate(assignment.due_date)}</span>
+                                        ${dateBadge}
+                                    </div>
+                                    ${remarksHtml}
+                                </div>
+                            </div>
+                            <div class="flex flex-wrap items-center gap-1.5 mt-1 sm:ml-9">
+                                ${questionBtn}
+                                ${uploads.length > 0 ? `<button onclick="toggleUploadsList(${assignment.id})" class="flex items-center justify-center gap-1 px-2 py-1.5 bg-surface text-textMain rounded-lg text-xs font-medium border border-borderLine hover:border-primary transition-colors"><i class="ph ph-files"></i> Ans (${uploads.length}) <i class="ph ph-caret-down" id="uploads-icon-${assignment.id}"></i></button>` : ''}
+                                <button onclick="openUploadModal(${assignment.id})" class="flex items-center justify-center gap-1 px-2 py-1.5 bg-surface border border-borderLine text-textMain rounded-lg text-xs font-medium hover:text-primary transition-colors"><i class="ph ph-upload-simple"></i> Upload</button>
+                                <button onclick="openEditModal(${assignment.id})" class="flex items-center justify-center gap-1 px-2 py-1.5 bg-surface border border-borderLine text-textMain rounded-lg text-xs font-medium hover:text-primary transition-colors" title="Edit"><i class="ph ph-pencil-simple"></i></button>
+                            </div>
+                        </div>
+                        ${uploadsHtml}
+                    `;
+                    ul.appendChild(li);
+                });
+                
+                cardBody.appendChild(ul);
+                subjectCard.appendChild(cardBody);
+                gridContainer.appendChild(subjectCard);
+            });
+
+            // Handle Empty State
+            if (visibleSubjectsCount === 0) {
+                gridContainer.innerHTML = `
+                    <div class="col-span-1 md:col-span-2 py-16 text-center flex flex-col items-center justify-center bg-[color-mix(in_srgb,var(--bg-surface)_40%,transparent)] border border-borderLine rounded-2xl border-dashed">
+                        <i class="ph ph-list-magnifying-glass text-4xl mb-3 text-textMuted"></i>
+                        <h3 class="text-lg font-bold text-textMain">No Assignments Found</h3>
+                        <p class="text-sm text-textMuted max-w-sm mt-2">Add your first assignment using the form above to start tracking your work.</p>
+                    </div>
+                `;
+            }
+
+            statsElement.innerText = `${completedCount} / ${assignments.length} Completed`;
+        }
+    </script>
+</body>
+</html>
