@@ -1,0 +1,9 @@
+# Dependencies
+node_modules/
+
+# Environment variables (NEVER push your actual .env file)
+.env
+
+# OS generated files
+.DS_Store
+Thumbs.db
