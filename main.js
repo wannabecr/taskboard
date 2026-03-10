@@ -126,3 +126,10 @@ export async function deleteTask(id) {
 
 window.toggleComplete = toggleComplete;
 window.deleteTask = deleteTask;
+// main.js
+console.log("Supabase URL:", import.meta.env.VITE_SUPABASE_URL ? "Loaded" : "MISSING");
+
+export async function handleGoogleLogin() {
+    console.log("Sign-in button clicked"); // Check if this shows in browser console
+    // ... rest of code
+}
