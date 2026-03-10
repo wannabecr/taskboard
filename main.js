@@ -133,3 +133,11 @@ export async function handleGoogleLogin() {
     console.log("Sign-in button clicked"); // Check if this shows in browser console
     // ... rest of code
 }
+document.addEventListener('DOMContentLoaded', async () => {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (session) {
+        const statusEl = document.getElementById('auth-status');
+        if (statusEl) statusEl.innerText = "Online";
+        initApp();
+    }
+});
